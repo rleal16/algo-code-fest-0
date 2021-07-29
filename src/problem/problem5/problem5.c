@@ -593,9 +593,6 @@ long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
     int a;
     switch (nh) {
     case ADD:
-        return ((s->n_cars < s->prob->f) + 1)*(s->prob->n - s
-        
-        
         a = (s->n_cars < s->prob->f && s->n_rides);
         return (a + 1)*(s->prob->n - s->n_rides);
         ->n_rides);
