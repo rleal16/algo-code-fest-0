@@ -322,6 +322,7 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 {
     dest->prob = src->prob;
     memcpy(dest->rides, src->rides, sizeof(int) * (src->prob->n + src->prob->f));
+    memcpy(dest->cars, src->cars, sizeof(int) * (src->prob->f));
     dest->n_cars = src->n_cars;
     dest->n_rides = src->n_rides;
     dest->evalv = src->evalv;
@@ -401,8 +402,7 @@ double *getObjectiveVector(double *objv, struct solution *s)
       // evaluate all solution cars
       int total_cars = s->prob->f;
       int i = 0;
-      printf("Total cars: %d\n", total_cars);
-      printf("N Rides: %d\n", n_rides);
+
       for(int vh = 0; vh<total_cars && n_rides>0; vh++){
         getCarObjectiveValue(vh, &n_rides, s);
       }
@@ -447,7 +447,7 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
             int pos = s->n_cars + s->n_rides;
             // find newRide's index
             for(j=pos; j<(n+f); j++){
-                if(s->rides[j] == v->newRide) 
+                if(s->rides[j] == v->newRide)
                     break;
             }
             swap(s->rides, pos, j);
@@ -467,12 +467,12 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
             pos++;
             // find newRide's index
             for(j=pos; j<(n+f); j++){
-                if(s->rides[j] == v->newRide) 
+                if(s->rides[j] == v->newRide)
                     break;
             }
-            swap(s->rides, pos, j); 
+            swap(s->rides, pos, j);
             s->n_rides++;
-        } 
+        }
         i = 0;
         break;
     case REMOVE:
@@ -488,7 +488,7 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
             for(j=(n+f-1); j>=0; j--){
                 if(s->rides[j]<n)
                     break;
-            } 
+            }
             // pos to add is n_cars+n_rides
             // we remove from the pos preceding it
             int pos = s->n_cars + s->n_rides - 1;
