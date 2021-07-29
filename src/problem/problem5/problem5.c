@@ -350,18 +350,65 @@ double *getObjectiveLB(double *objLB, struct solution *s)
  */
 struct solution *applyMove(struct solution *s, const struct move *v, const enum SubNeighbourhood nh)
 {
-    int i;
+    int i,j;
+    int n = s->prob->n;
+    int f = s->prob->f;
     switch (nh) {
     case ADD:
-        /*
-         * IMPLEMENT HERE
-         */
+        // add to current car
+        if(v->previousRide < n){
+            // pos we will add to
+            int pos = s->n_cars + s->n_rides;
+            // find newRide's index
+            for(j=pos; j<(n+f); j++){
+                if(s->rides[j] == v->newRide) 
+                    break;
+            }
+            swap(s->rides, pos, j);
+            s->n_rides++;
+        } // add to new car
+        else {
+            // add car
+            int pos = s->n_cars + s->n_rides;
+            // find first car available to add's idnex
+            for(j=pos; j<(n+f); j++){
+                if(s->rides[j]>=n)
+                    break;
+            }
+            swap(s->rides, pos, j);
+            s->n_cars++;
+            // add ride
+            pos++;
+            // find newRide's index
+            for(j=pos; j<(n+f); j++){
+                if(s->rides[j] == v->newRide) 
+                    break;
+            }
+            swap(s->rides, pos, j); 
+            s->n_rides++;
+        } 
         i = 0;
         break;
     case REMOVE:
-        /*
-         * IMPLEMENT HERE
-         */
+        // remove from current car
+        if(v->previousRide < n){
+            s->n_rides--;
+        } // remove car as well as ride
+        // !! assuming car only had that one ride !!
+        else {
+            s->n_rides--;
+            // find (from right to left) first position containing ride
+            // so that end of s->rides contains only cars :)
+            for(j=(n+f-1); j>=0; j--){
+                if(s->rides[j]<n)
+                    break;
+            } 
+            // pos to add is n_cars+n_rides
+            // we remove from the pos preceding it
+            int pos = s->n_cars + s->n_rides - 1;
+            swap(s->rides, pos, j);
+            s->n_cars--;
+        }
         i = 1;
         break;
     default:
@@ -374,6 +421,7 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
         s->objLB += v->objLBi;
     else
         s->evalLB = 0;
+    updateCarPositions(s);
     return s;
 }
 
