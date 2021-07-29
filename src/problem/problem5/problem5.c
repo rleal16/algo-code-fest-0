@@ -36,6 +36,8 @@ struct solution {
   double objv;  /* Objective value */
   int evalLB;   /* Flag indicating if the lower bound is calculated */
   double objLB; /* Lower bound */
+  int addMoveCounter;     // used by enumMove()
+  int removeMoveCounter;  // used by enumMove()
 };
 
 struct move {
@@ -289,6 +291,8 @@ struct solution *emptySolution(struct solution *s)
   s->n_rides = 0;
   s->evalv = 0;
   s->evalLB = 0;
+  s->addMoveCounter = 0;
+  s->removeMoveCounter = 0;
   return s;
 }
 
@@ -440,13 +444,11 @@ struct solution *resetEnumMove(struct solution *s, const enum SubNeighbourhood n
 {
     switch (nh) {
     case ADD:
-        /*
-         * IMPLEMENT HERE
-         */
+        s->addMoveCounter = 0;
+        break;
     case REMOVE:
-        /*
-         * IMPLEMENT HERE
-         */
+        s->removeMoveCounter = 0;
+        break;
     default:
         fprintf(stderr, "Invalid neighbourhood passed to resetEnumMove().\n");
         break;
@@ -462,6 +464,8 @@ long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
     switch (nh) {
     case ADD:
         return ((s->n_cars < s->prob->f) + 1)*(s->prob->n - s->n_rides);
+    case REMOVE:
+        return 1;
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getNeighbourhoodSize().\n");
         break;
@@ -524,12 +528,72 @@ struct solution *heuristicSolution(struct solution *s)
  */
 struct move *enumMove(struct move *v, struct solution *s, const enum SubNeighbourhood nh)
 {
-    /* subneighbourhood nh of solution is an empty set, cannot generate move */
+    int n = s->prob->n;
+    int f = s->prob->f;
     switch (nh) {
     case ADD:
-        /*
-         * IMPLEMENT HERE
-         */
+        // all moves have been enumerated
+        if(s->addMoveCounter >= getNeighbourhoodSize(s,nh))
+            return NULL;
+        // can't add anymore
+        if(s->n_rides == n)
+            return NULL;
+        
+        // first car must always have rides, so only N neighbourhood size
+        if(s->n_rides==0){
+            if(s->addMoveCounter >= n)
+                return NULL;
+            v->previousRide = -1; // previous ride was car
+            v->newRide = s->rides[s->addMoveCounter+1];
+        }// if all cars assigned, can only pool from remaining rides
+        else if(s->n_cars==f){
+            if(s->addMoveCounter >= n-s->n_rides)
+                return NULL;
+            // if s->ncars==f 
+            // then we have already added the last car, and at least one ride (cf. applymove)
+            // c r | r r r r 
+            int pos = s->n_cars + s->n_rides;
+            v->previousRide = s->rides[pos-1];
+            v->newRide = s->rides[pos+s->addMoveCounter];
+        }
+        else {
+            int pos = s->n_cars + s->n_rides;
+            // add to current car
+            if(s->addMoveCounter < n-s->n_rides){
+                v->previousRide = s->rides[pos-1];
+                v->newRide = s->rides[pos+s->addMoveCounter];
+            } // add to new car
+            else {
+                v->previousRide = n;
+                v->newRide = s->rides[pos+s->addMoveCounter];
+            }
+        }
+        s->addMoveCounter++;
+        break;
+    case REMOVE:
+        if(s->n_cars==1 && s->n_rides==0)
+            return NULL;
+        
+        if(s->removeMoveCounter >= getNeighbourhoodSize(s,nh))
+            return NULL;
+        
+        // if car has only one ride we remove the car as well
+        // s->rides[pos-1] is car, s->rides[pos] is ride
+        // s->rides[pos] can never be another car!
+        // (since when we add car we also add ride, and first car always has ride)
+        int pos = s->n_cars + s->n_rides - 1;
+        if(s->rides[pos-1]>=n){ 
+            // removal signaled with previousRide=n (not ride id)
+            // if first car can't remove it! checked in applymove()
+            v->previousRide = n;
+            v->newRide = s->rides[pos];
+        } // else remove car's last ride
+        else {
+            v->previousRide = s->rides[pos-1];
+            v->newRide = s->rides[pos];
+        }
+        s->removeMoveCounter++;
+        break;
     default:
         fprintf(stderr, "Invalid neighbourhood passed to applyMove().\n");
         return NULL;
