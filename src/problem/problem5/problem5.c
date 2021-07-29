@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX(X, Y) ((X) > (Y)) ? (X) : (Y)
+
 struct problem {
   int r, c, f, n, b, t;
   int **rides;
@@ -30,6 +32,7 @@ struct problem {
 struct solution {
   struct problem *prob;
   int *rides;
+  int *cars;
   int n_cars; // the number of cars present in the solution
   int n_rides;
   int evalv;    /* Flag indicating if the solution is evaluated */
@@ -59,6 +62,18 @@ extern gsl_rng *rng; /* The single rng instance used by the whole code */
 static int randint(const int n_max)
 {
     return gsl_rng_uniform_int(rng, n_max + 1);
+}
+
+static void updateCarPositions(struct solution *s){
+  struct problem *p = s->prob;
+  int cars = 0;
+  int n = p->f+p->n;
+  for(int i = 0; i<n; i++){
+    if(s->rides[i] >= p->n){
+        s->cars[cars] = i;
+        cars++;
+    }
+  }
 }
 
 /*
@@ -172,6 +187,7 @@ struct solution *allocSolution(struct problem *p)
     struct solution *s = malloc(sizeof(struct solution));
     s->prob = p;
     s->rides = malloc(sizeof(int)*(p->n + p->f));
+    s->cars = malloc(sizeof(int)*(p->f));
     return s;
 }
 
@@ -205,6 +221,7 @@ void freeProblem(struct problem *p)
 void freeSolution(struct solution *s)
 {
   free(s->rides);
+  free(s->cars);
   free(s);
 }
 
@@ -266,7 +283,7 @@ void printMove(const struct move *v)
         printf("ADD\n");
     else
         printf("REMOVE\n");
-    
+
 }
 
 /***************************/
@@ -285,8 +302,14 @@ struct solution *emptySolution(struct solution *s)
   }
   s->rides[0] = p->n;
   s->rides[p->n] = 0;
+
+
+
+  updateCarPositions(s);
   s->n_cars = 1;
   s->n_rides = 0;
+  /** For Testing **/
+  s->n_rides+=20;
   s->evalv = 0;
   s->evalLB = 0;
   return s;
@@ -311,6 +334,61 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 /*
  * Solution evaluation
  */
+ static double evaluateRide(int *step, int i, int *vh_pos, struct solution *s){
+   struct problem *p = s->prob;
+   double int_score = 0.0;
+   int **rides = p->rides;
+   int dist;
+   int ride = s->rides[i];
+
+   (*step) += abs(rides[ride][0]-vh_pos[0]) + abs(rides[ride][1]-vh_pos[1]); //Go to the start intersection
+
+   //Give bonus if ride has started on time
+   if((*step) <= rides[ride][4]){
+     int_score+=p->b;
+   }
+
+   (*step) += MAX(0, rides[ride][4] - (*step)); //Wait for earliest start
+
+   dist = abs(rides[ride][0]-rides[ride][2]) + abs(rides[ride][1]-rides[ride][3]);
+   (*step) += dist; //Do the ride
+
+   //update vehicle's position
+   vh_pos[0] = rides[ride][2];
+   vh_pos[1] = rides[ride][3];
+
+   //If ride finished on time, add to the score
+   if((*step) <= rides[ride][5]){
+     int_score+=dist;
+   }
+
+   return int_score;
+ }
+
+
+static double getCarObjectiveValue(int car, int *n_rides, struct solution *s){
+  struct problem *p = s->prob;
+  int n = p->f + p->n;
+  int i, step = 0, t = p->t;
+  double score = .0, int_score;
+  int vh_pos[2];
+
+  vh_pos[0] = 0;
+  vh_pos[1] = 0;
+  i = s->cars[car]+1;
+
+  for(; i<n && i<s->cars[car+1] && step < t && *n_rides > 0; i++){
+    printf("Evaluate Ride\n");
+    int_score = evaluateRide(&step, i, vh_pos, s);
+    *n_rides--;
+    score += int_score;
+  }
+
+  s->objv+=score;
+
+  return score;
+}
+
 double *getObjectiveVector(double *objv, struct solution *s)
 {
     /* solution is unfeasible, cannot evaluate it */
@@ -318,12 +396,20 @@ double *getObjectiveVector(double *objv, struct solution *s)
     if (s->evalv) /* solution s is evaluated */
         *objv = s->objv;
     else { /* solution s is not evaluated */
-        /*
-         * IMPLEMENT HERE
-         */
-        *objv = s->objv = obj;
-        s->evalv = 1;
+      s->objv = 0;
+      int n_rides = s->n_rides;
+      // evaluate all solution cars
+      int total_cars = s->prob->f;
+      int i = 0;
+      printf("Total cars: %d\n", total_cars);
+      printf("N Rides: %d\n", n_rides);
+      for(int vh = 0; vh<total_cars && n_rides>0; vh++){
+        getCarObjectiveValue(vh, &n_rides, s);
+      }
+      *objv = -1*s->objv;
+      s->evalv = 1;
     }
+
     return objv;
 }
 
