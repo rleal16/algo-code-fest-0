@@ -160,8 +160,6 @@ long getMaxNeighbourhoodSize(const struct problem *p, const enum SubNeighbourhoo
     case ADD:
         return p->n + p->n;
     case REMOVE:
-        if(s->n_cars==1 && s->n_rides==0)
-            return 0;
         return 1;
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getMaxNeighbourhoodSize().\n");
@@ -581,8 +579,9 @@ long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
     case ADD:
         a = (s->n_cars < s->prob->f && s->n_rides);
         return (a + 1)*(s->prob->n - s->n_rides);
-        ->n_rides);
     case REMOVE:
+        if(s->n_cars==1 && s->n_rides==0)
+            return 0;
         return 1;
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getNeighbourhoodSize().\n");
