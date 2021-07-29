@@ -1,14 +1,14 @@
 /* problem5.c
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License, version 3, as
  * published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
@@ -23,29 +23,28 @@
 #include <string.h>
 
 struct problem {
-    /*
-     * IMPLEMENT HERE
-     */
+  int r, c, f, n, b, t;
+  int **rides;
 };
 
 struct solution {
-    struct problem *prob;
-    /*
-     * IMPLEMENT HERE
-     */
-    int evalv;    /* Flag indicating if the solution is evaluated */
-    double objv;  /* Objective value */
-    int evalLB;   /* Flag indicating if the lower bound is calculated */
-    double objLB; /* Lower bound */
+  struct problem *prob;
+  /*
+   * IMPLEMENT HERE
+   */
+  int evalv;    /* Flag indicating if the solution is evaluated */
+  double objv;  /* Objective value */
+  int evalLB;   /* Flag indicating if the lower bound is calculated */
+  double objLB; /* Lower bound */
 };
 
 struct move {
-    struct problem *prob;
-    /*
-     * IMPLEMENT HERE
-     */
-    int evalLBi[2]; /* Flag indicating if lower bound increment is evaluated for subneighbourhoods: { 0 - Add, 1 - Remove } */
-    double objLBi;  /* Lower bound increment */
+  struct problem *prob;
+  /*
+   * IMPLEMENT HERE
+   */
+  int evalLBi[2]; /* Flag indicating if lower bound increment is evaluated for subneighbourhoods: { 0 - Add, 1 - Remove } */
+  double objLBi;  /* Lower bound increment */
 };
 
 extern gsl_rng *rng; /* The single rng instance used by the whole code */
@@ -93,16 +92,36 @@ static void swap_i(int *data, int *idata, const int i, const int j)
 /*
  * Problem instantiation
  */
+
+
+
+
+
 struct problem *newProblem(const char *filename)
 {
     FILE *infile;
+    int i;
     struct problem *p = NULL;
     infile = fopen(filename, "r");
+
     if (infile) {
-        /*
-         * IMPLEMENT HERE
-         */
+        struct problem *p = (struct problem*) malloc(sizeof(struct problem));
+
+        if(fscanf(infile, "%d %d %d %d %d %d", &(p->r), &(p->c), &(p->f), &(p->n), &(p->b), &(p->t)) != 6)
+          return NULL;
+        p->rides = (int**) malloc(sizeof(int*)*(p->n));
+
+        //p->rides = malloc(sizeof(int)*(p->n));
+        for(i = 0; i < p->n; i++){
+          p->rides[i] = malloc(sizeof(int*)*6);
+          if(fscanf(infile, "%d %d %d %d %d %d",
+          &(p->rides[i][0]), &(p->rides[i][1]), &(p->rides[i][2]), &(p->rides[i][3]), &(p->rides[i][4]), &(p->rides[i][5])) != 6)
+            return NULL;
+        }
+
         fclose(infile);
+
+        return p;
     }
     else
         fprintf(stderr, "Cannot open file %s.\n", filename);
@@ -226,9 +245,12 @@ void freeMove(struct move *v)
  */
 void printProblem(const struct problem *p)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+  int i;
+  printf("%d %d %d %d %d %d\n", p->r, p->c, p->f, p->n, p->b, p->t);
+  for(i = 0; i < p->n; i++){
+    printf( "%d %d %d %d %d %d\n",
+    p->rides[i][0], p->rides[i][1], p->rides[i][2], p->rides[i][3], p->rides[i][4], p->rides[i][5]);
+  }
 }
 
 /*
