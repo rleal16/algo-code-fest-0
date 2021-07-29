@@ -157,9 +157,7 @@ long getNumComponents(const struct problem *p)
  */
 long getMaxSolutionSize(const struct problem *p)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    return (p->n);
 }
 
 /*********************/
