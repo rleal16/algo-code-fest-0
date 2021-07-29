@@ -40,9 +40,9 @@ struct solution {
 
 struct move {
   struct problem *prob;
-  /*
-   * IMPLEMENT HERE
-   */
+  int componentId;
+  int previousRide; /* 0..N-1 if previous is a ride or N if previous is a new car (newRide is the first ride in the car) */
+  int newRide;
   int evalLBi[2]; /* Flag indicating if lower bound increment is evaluated for subneighbourhoods: { 0 - Add, 1 - Remove } */
   double objLBi;  /* Lower bound increment */
 };
@@ -182,9 +182,6 @@ struct move *allocMove(struct problem *p)
 {
     struct move *v = malloc(sizeof(struct move));
     v->prob = p;
-    /*
-     * IMPLEMENT HERE
-     */
     return v;
 }
 
@@ -216,9 +213,6 @@ void freeSolution(struct solution *s)
  */
 void freeMove(struct move *v)
 {
-    /*
-     * IMPLEMENT HERE
-     */
     free(v);
 }
 
@@ -244,9 +238,17 @@ void printProblem(const struct problem *p)
  */
 void printSolution(const struct solution *s)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    for (int i = 0; i < s->n_cars + s->n_rides; ++i) {
+        if (s->rides[i] >= s->prob->n)
+            printf("\nthis vehicle has the following rides assigned:");
+        else
+            printf(" %d", s->rides[i]);
+        if (s->evalv)
+            printf("\nobjv = %.1lf", s->objv);
+        if (s->evalLB)
+            printf("\nobjLB = %.1lf", s->objv);
+        printf("\n\n");
+    }
 }
 
 /*
@@ -254,9 +256,17 @@ void printSolution(const struct solution *s)
  */
 void printMove(const struct move *v)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    if (v->previousRide < v->prob->n)
+        printf("New ride %d after ride %d\n", v->newRide, v->previousRide);
+    else
+        printf("New car starting with ride %d\n", v->newRide);
+    printf("component identifier %d\n", v->componentId);
+    printf("increment %1.lf ", v->objLBi);
+    if (v->evalLBi[0])
+        printf("ADD\n");
+    else
+        printf("REMOVE\n");
+    
 }
 
 /***************************/
@@ -270,17 +280,15 @@ struct solution *emptySolution(struct solution *s)
 {
   /* solution s must have been allocated with allocSolution() */
   struct problem *p = s->prob;
-  s->n_cars = 1;
-  s->n_rides = 0;
-  s->evalv = 0;
-  s->evalLB = 0;
-
   for(int i = 0; i < (p->n + p->f); i++){
     s->rides[i] = i;
   }
   s->rides[0] = p->n;
   s->rides[p->n] = 0;
-
+  s->n_cars = 1;
+  s->n_rides = 0;
+  s->evalv = 0;
+  s->evalLB = 0;
   return s;
 }
 
@@ -289,10 +297,8 @@ struct solution *emptySolution(struct solution *s)
  */
 struct solution *copySolution(struct solution *dest, const struct solution *src)
 {
-    dest->prob = dest->prob;
-    /*
-     * IMPLEMENT HERE
-     */
+    dest->prob = src->prob;
+    memcpy(dest->rides, src->rides, sizeof(int) * (src->prob->n + src->prob->f));
     dest->evalv = src->evalv;
     dest->objv = src->objv;
     dest->evalLB = src->evalLB;
@@ -303,11 +309,6 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 /*
  * Solution evaluation
  */
-
-
- 
-
-
 double *getObjectiveVector(double *objv, struct solution *s)
 {
     /* solution is unfeasible, cannot evaluate it */
@@ -379,9 +380,7 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
  */
 int isFeasible(struct solution *s)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    return 1;
 }
 
 /*
@@ -412,9 +411,7 @@ long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
 {
     switch (nh) {
     case ADD:
-        /*
-         * IMPLEMENT HERE
-         */
+        return 2*(s->prob->n - s->n_rides);
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getNeighbourhoodSize().\n");
         break;
@@ -497,9 +494,6 @@ struct move *enumMove(struct move *v, struct solution *s, const enum SubNeighbou
 struct move *copyMove(struct move *dest, const struct move *src)
 {
     dest->prob = src->prob;
-    /*
-     * IMPLEMENT HERE
-     */
     memcpy(dest->evalLBi, src->evalLBi, 2 * sizeof(int));
     dest->objLBi = src->objLBi;
     return dest;
@@ -551,9 +545,7 @@ double *getObjectiveLBIncrement(double *obji, struct move *v, struct solution *s
  */
 long getComponentFromMove(const struct move *v)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    return v->componentId;
 }
 
 /*
