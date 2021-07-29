@@ -299,6 +299,8 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 {
     dest->prob = src->prob;
     memcpy(dest->rides, src->rides, sizeof(int) * (src->prob->n + src->prob->f));
+    dest->n_cars = src->n_cars;
+    dest->n_rides = src->n_rides;
     dest->evalv = src->evalv;
     dest->objv = src->objv;
     dest->evalLB = src->evalLB;
@@ -411,7 +413,7 @@ long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
 {
     switch (nh) {
     case ADD:
-        return 2*(s->prob->n - s->n_rides);
+        return ((s->n_cars < s->prob->f) + 1)*(s->prob->n - s->n_rides);
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getNeighbourhoodSize().\n");
         break;
