@@ -92,11 +92,6 @@ static void swap_i(int *data, int *idata, const int i, const int j)
 /*
  * Problem instantiation
  */
-
-
-
-
-
 struct problem *newProblem(const char *filename)
 {
     FILE *infile;
@@ -139,13 +134,9 @@ long getMaxNeighbourhoodSize(const struct problem *p, const enum SubNeighbourhoo
 {
     switch (nh) {
     case ADD:
-        /*
-         * IMPLEMENT HERE
-         */
+        return p->n + p->n;
     case REMOVE:
-        /*
-         * IMPLEMENT HERE
-         */
+        return 1;
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getMaxNeighbourhoodSize().\n");
         break;
@@ -158,9 +149,7 @@ long getMaxNeighbourhoodSize(const struct problem *p, const enum SubNeighbourhoo
  */
 long getNumComponents(const struct problem *p)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    return (p->n)*(1+p->n)/2;
 }
 
 /*
@@ -168,9 +157,7 @@ long getNumComponents(const struct problem *p)
  */
 long getMaxSolutionSize(const struct problem *p)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    return (p->n);
 }
 
 /*********************/
