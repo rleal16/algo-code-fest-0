@@ -208,10 +208,13 @@ struct move *allocMove(struct problem *p)
  */
 void freeProblem(struct problem *p)
 {
-    /*
-     * IMPLEMENT HERE
-     */
+    int i;
+    for(i = 0; i < p->n; i++){
+        free(p->rides[i]);
+    }
+    free(p->rides);
     free(p);
+
 }
 
 /*
