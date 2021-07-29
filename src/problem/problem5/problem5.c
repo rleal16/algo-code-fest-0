@@ -379,7 +379,7 @@ static double getCarObjectiveValue(int car, int *n_rides, struct solution *s){
   i = s->cars[car]+1;
 
   for(; i<n && i<s->cars[car+1] && step < t && *n_rides > 0; i++){
-    printf("Evaluate Ride\n");
+    
     int_score = evaluateRide(&step, i, vh_pos, s);
     *n_rides--;
     score += int_score;
