@@ -411,6 +411,42 @@ static int t_incremental_evaluation_add(struct problem *p)
 #endif
 }
 
+static int t_construction(struct problem *p)
+{
+#if ALLOCSOLUTION && ALLOCMOVE && FREESOLUTION && FREEMOVE && PRINTSOLUTION && PRINTMOVE && EMPTYSOLUTION && ENUMADDMOVE && APPLYADDMOVE
+    struct solution *s1;
+    struct move *v;
+    int passed = 1, i = 1;
+
+    /* Memory allocation */
+    s1 = allocSolution(p);
+    v = allocMove(p);
+
+    /* Run */
+    emptySolution(s1);
+    printSolution(s1);
+    while (i > 0) {
+        i = 0;
+        while (enumMove(v, s1, ADD) != NULL) {
+            printMove(v);
+            i++;
+        }
+        if (!i) {
+            applyMove(s1, v, ADD);
+            printSolution(s1);
+        }
+    }
+
+    /* Clean up */
+    freeSolution(s1);
+    freeMove(v);
+
+    return passed;
+#else
+    return 0;
+#endif
+}
+
 static struct property_test test[] = {
     {.name = "Test incremental lower bound evaluation (ADD and REMOVE only)",
      .description = "",
@@ -421,6 +457,11 @@ static struct property_test test[] = {
      .description = "",
      .function = &t_incremental_evaluation_add,
      .pf = (enum ProblemFunction[11]){_allocSolution_, _allocMove_, _freeSolution_, _freeMove_, _printSolution_, _printMove_, _emptySolution_, _getObjectiveLB_, _randomAddMove_, _applyAddMove_, _getAddObjectiveLBIncrement_},
+     .pfn = 11},
+    {.name = "Construction (ADD only)",
+     .description = "",
+     .function = &t_construction,
+     .pf = (enum ProblemFunction[11]){_allocSolution_, _allocMove_, _freeSolution_, _freeMove_, _printSolution_, _printMove_, _emptySolution_, _enumAddMove_, _applyAddMove_},
      .pfn = 11}};
 
 /**********************************/
