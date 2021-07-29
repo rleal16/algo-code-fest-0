@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX(X, Y) ((X) > (Y)) ? (X) : (Y)
+
 struct problem {
   int r, c, f, n, b, t;
   int **rides;
@@ -30,14 +32,17 @@ struct problem {
 struct solution {
   struct problem *prob;
   int *rides;
+  int *cars;
   int n_cars; // the number of cars present in the solution
   int n_rides;
+  int last_eval_ride;
   int evalv;    /* Flag indicating if the solution is evaluated */
   double objv;  /* Objective value */
   int evalLB;   /* Flag indicating if the lower bound is calculated */
   double objLB; /* Lower bound */
   int addMoveCounter;     // used by enumMove()
   int removeMoveCounter;  // used by enumMove()
+  int enumComponentState; /* number of components left to enumerate */
 };
 
 struct move {
@@ -63,6 +68,18 @@ static int randint(const int n_max)
     return gsl_rng_uniform_int(rng, n_max + 1);
 }
 
+static void updateCarPositions(struct solution *s){
+  struct problem *p = s->prob;
+  int cars = 0;
+  int n = p->f+p->n;
+  for(int i = 0; i<n; i++){
+    if(s->rides[i] >= p->n){
+        s->cars[cars] = i;
+        cars++;
+    }
+  }
+}
+
 /*
  * Exchange the values of the ith and jth elements of an array
  */
@@ -85,6 +102,10 @@ static void swap_i(int *data, int *idata, const int i, const int j)
         return;
     swap(data, i, j);
     swap(idata, *(data + i), *(data + j));
+}
+
+static int pairing(int x, int y) {
+    return x > y ? x * (x - 1) / 2 + y : y * (y - 1) / 2 + x;
 }
 
 /*************************/
@@ -138,6 +159,8 @@ long getMaxNeighbourhoodSize(const struct problem *p, const enum SubNeighbourhoo
     case ADD:
         return p->n + p->n;
     case REMOVE:
+        if(s->n_cars==1 && s->n_rides==0)
+            return 0;
         return 1;
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getMaxNeighbourhoodSize().\n");
@@ -174,6 +197,7 @@ struct solution *allocSolution(struct problem *p)
     struct solution *s = malloc(sizeof(struct solution));
     s->prob = p;
     s->rides = malloc(sizeof(int)*(p->n + p->f));
+    s->cars = malloc(sizeof(int)*(p->f));
     return s;
 }
 
@@ -207,6 +231,7 @@ void freeProblem(struct problem *p)
 void freeSolution(struct solution *s)
 {
   free(s->rides);
+  free(s->cars);
   free(s);
 }
 
@@ -268,7 +293,7 @@ void printMove(const struct move *v)
         printf("ADD\n");
     else
         printf("REMOVE\n");
-    
+
 }
 
 /***************************/
@@ -287,12 +312,19 @@ struct solution *emptySolution(struct solution *s)
   }
   s->rides[0] = p->n;
   s->rides[p->n] = 0;
+
+
+
+  updateCarPositions(s);
   s->n_cars = 1;
   s->n_rides = 0;
+  /** For Testing **/
+  s->n_rides+=20;
   s->evalv = 0;
   s->evalLB = 0;
   s->addMoveCounter = 0;
   s->removeMoveCounter = 0;
+  s->enumComponentState = s->n_rides;
   return s;
 }
 
@@ -303,8 +335,10 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 {
     dest->prob = src->prob;
     memcpy(dest->rides, src->rides, sizeof(int) * (src->prob->n + src->prob->f));
+    memcpy(dest->cars, src->cars, sizeof(int) * (src->prob->f));
     dest->n_cars = src->n_cars;
     dest->n_rides = src->n_rides;
+    dest->last_eval_ride = src->last_eval_ride;
     dest->evalv = src->evalv;
     dest->objv = src->objv;
     dest->evalLB = src->evalLB;
@@ -315,6 +349,62 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 /*
  * Solution evaluation
  */
+ static double evaluateRide(int *step, int i, int *vh_pos, struct solution *s){
+   struct problem *p = s->prob;
+   double int_score = 0.0;
+   int **rides = p->rides;
+   int dist;
+   int ride = s->rides[i];
+
+   (*step) += abs(rides[ride][0]-vh_pos[0]) + abs(rides[ride][1]-vh_pos[1]); //Go to the start intersection
+
+   //Give bonus if ride has started on time
+   if((*step) <= rides[ride][4]){
+     int_score+=p->b;
+   }
+
+   (*step) += MAX(0, rides[ride][4] - (*step)); //Wait for earliest start
+
+   dist = abs(rides[ride][0]-rides[ride][2]) + abs(rides[ride][1]-rides[ride][3]);
+   (*step) += dist; //Do the ride
+
+   //update vehicle's position
+   vh_pos[0] = rides[ride][2];
+   vh_pos[1] = rides[ride][3];
+
+   //If ride finished on time, add to the score
+   if((*step) <= rides[ride][5]){
+     int_score+=dist;
+   }
+
+   return int_score;
+ }
+
+
+static double getCarObjectiveValue(int car, int *n_rides, struct solution *s){
+  struct problem *p = s->prob;
+  int n = p->f + p->n;
+  int i, step = 0, t = p->t;
+  double score = .0, int_score;
+  int vh_pos[2];
+
+  vh_pos[0] = 0;
+  vh_pos[1] = 0;
+  i = s->cars[car]+1;
+
+  for(; i<n && i<s->cars[car+1] && step < t && *n_rides > 0; i++){
+
+    int_score = evaluateRide(&step, i, vh_pos, s);
+    s->last_eval_ride = i;
+    *n_rides--;
+    score += int_score;
+  }
+
+  s->objv+=score;
+
+  return score;
+}
+
 double *getObjectiveVector(double *objv, struct solution *s)
 {
     /* solution is unfeasible, cannot evaluate it */
@@ -322,31 +412,70 @@ double *getObjectiveVector(double *objv, struct solution *s)
     if (s->evalv) /* solution s is evaluated */
         *objv = s->objv;
     else { /* solution s is not evaluated */
-        /*
-         * IMPLEMENT HERE
-         */
-        *objv = s->objv = obj;
-        s->evalv = 1;
+      s->objv = 0;
+      int n_rides = s->n_rides;
+      // evaluate all solution cars
+      int total_cars = s->prob->f;
+      int i = 0;
+
+      for(int vh = 0; vh<total_cars && n_rides>0; vh++){
+        getCarObjectiveValue(vh, &n_rides, s);
+      }
+
+      *objv = -1*s->objv;
+      s->evalv = 1;
     }
+
     return objv;
 }
 
 /*
  * Lower bound evaluation
  */
+
+static double evaluateRideOptimistically(int i, struct solution *s){
+ struct problem *p = s->prob;
+ double int_score = 0.0;
+ int **rides = p->rides;
+ int dist;
+ int ride = s->rides[i];
+
+ //Give bonus if ride has started on time
+ int_score+=p->b;
+
+ // assume ride ends on time
+ int_score += abs(rides[ride][0]-rides[ride][2]) + abs(rides[ride][1]-rides[ride][3]);
+
+ return int_score;
+}
+
+
 double *getObjectiveLB(double *objLB, struct solution *s)
 {
-    double obj = 0.0;
-    if (s->evalLB) /* solution s is evaluated */
-        *objLB = s->objLB;
-    else { /* solution s is not evaluated */
-        /*
-         * IMPLEMENT HERE
-         */
-        *objLB = s->objLB = obj;
-        s->evalLB = 1;
-    }
-    return objLB;
+  struct problem *p = s->prob;
+  int n = p->f + p->n;
+
+  int vh_pos[2];
+  vh_pos[0] = 0;
+  vh_pos[1] = 0;
+
+  double obj = 0.0;
+  if (s->evalLB) /* solution s is evaluated */
+      *objLB = -1*s->objLB;
+  else { /* solution s is not evaluated */
+      int n = s->prob->n + s->prob->f;
+      getObjectiveVector(&obj, s);
+      s->objLB = s->objv;
+
+      int i = s->last_eval_ride+1;
+      for(; i<n && s->rides[i] < s->prob->n; i++){
+        s->objLB += evaluateRideOptimistically(i, s);
+      }
+
+      *objLB = -1*s->objLB;
+      s->evalLB = 1;
+  }
+  return objLB;
 }
 
 /*
@@ -365,7 +494,7 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
             int pos = s->n_cars + s->n_rides;
             // find newRide's index
             for(j=pos; j<(n+f); j++){
-                if(s->rides[j] == v->newRide) 
+                if(s->rides[j] == v->newRide)
                     break;
             }
             swap(s->rides, pos, j);
@@ -385,12 +514,12 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
             pos++;
             // find newRide's index
             for(j=pos; j<(n+f); j++){
-                if(s->rides[j] == v->newRide) 
+                if(s->rides[j] == v->newRide)
                     break;
             }
-            swap(s->rides, pos, j); 
+            swap(s->rides, pos, j);
             s->n_rides++;
-        } 
+        }
         i = 0;
         break;
     case REMOVE:
@@ -406,7 +535,7 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
             for(j=(n+f-1); j>=0; j--){
                 if(s->rides[j]<n)
                     break;
-            } 
+            }
             // pos to add is n_cars+n_rides
             // we remove from the pos preceding it
             int pos = s->n_cars + s->n_rides - 1;
@@ -461,9 +590,15 @@ struct solution *resetEnumMove(struct solution *s, const enum SubNeighbourhood n
  */
 long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
 {
+    int a;
     switch (nh) {
     case ADD:
-        return ((s->n_cars < s->prob->f) + 1)*(s->prob->n - s->n_rides);
+        return ((s->n_cars < s->prob->f) + 1)*(s->prob->n - s
+        
+        
+        a = (s->n_cars < s->prob->f && s->n_rides);
+        return (a + 1)*(s->prob->n - s->n_rides);
+        ->n_rides);
     case REMOVE:
         return 1;
     default:
@@ -478,11 +613,19 @@ long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
  */
 long enumSolutionComponents(struct solution *s, const enum ComponentState st)
 {
+    int aux;
     switch (st) {
     case PRESENT:
-        /*
-         * IMPLEMENT HERE
-         */
+        if (!s->enumComponentState)
+            return -1;
+        aux = s->n_rides + s->n_cars - s->enumComponentState--;
+        if (s->rides[aux] < s->prob->n) {
+            return pairing(s->rides[aux - 1] < s->prob->n ? s->rides[aux - 1] : s->prob->n, s->rides[aux]);
+        }
+        else {
+            s->enumComponentState--;
+            return pairing(s->prob->n, s->rides[aux + 1]);
+        }
     default:
         fprintf(stderr, "Invalid state passed to enumSolutionComponents().\n");
         break;
@@ -498,9 +641,8 @@ struct solution *resetEnumSolutionComponents(struct solution *s, const enum Comp
 {
     switch (st) {
     case PRESENT:
-        /*
-         * IMPLEMENT HERE
-         */
+        s->enumComponentState = s->n_rides + s->n_cars - 1;
+        return s;
     default:
         fprintf(stderr, "Invalid state passed to resetEnumSolutionComponents().\n");
         break;

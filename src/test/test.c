@@ -33,6 +33,8 @@ gsl_rng *rng; /* The single rng instance used by the whole code */
 int main(int argc, char **argv)
 {
     struct problem *p;
+    struct solution *s;
+    double cost, lb;
 
     /* Set up random number generation */
     rng = gsl_rng_alloc(gsl_rng_mt19937);
@@ -40,13 +42,19 @@ int main(int argc, char **argv)
 
     /* Problem instantiation */
     p = initProblem(argc, argv);
-
     if (p != NULL) {
-        printProblem(p);
+        s = allocSolution(p);
+        //printProblem(p);
+        s = emptySolution(s);
+        getObjectiveVector(&cost, s);
+        getObjectiveLB(&lb, s);
+        printf("Cost is: %lf\n", cost);
+        printf("LB is: %lf\n", lb);
         /* Run tests */
-        runPropertyBased(p, MAX_REP);
+        //runPropertyBased(p, MAX_REP);
 
         /* Clean up */
+        freeSolution(s);
         freeProblem(p);
     }
 
