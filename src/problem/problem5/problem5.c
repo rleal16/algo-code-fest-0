@@ -36,6 +36,7 @@ struct solution {
   double objv;  /* Objective value */
   int evalLB;   /* Flag indicating if the lower bound is calculated */
   double objLB; /* Lower bound */
+  int enumComponentState; /* number of components left to enumerate */
 };
 
 struct move {
@@ -83,6 +84,10 @@ static void swap_i(int *data, int *idata, const int i, const int j)
         return;
     swap(data, i, j);
     swap(idata, *(data + i), *(data + j));
+}
+
+static int pairing(int x, int y) {
+    return x > y ? x * (x - 1) / 2 + y : y * (y - 1) / 2 + x;
 }
 
 /*************************/
@@ -289,6 +294,7 @@ struct solution *emptySolution(struct solution *s)
   s->n_rides = 0;
   s->evalv = 0;
   s->evalLB = 0;
+  s->enumComponentState = s->n_rides;
   return s;
 }
 
@@ -411,9 +417,11 @@ struct solution *resetEnumMove(struct solution *s, const enum SubNeighbourhood n
  */
 long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
 {
+    int a;
     switch (nh) {
     case ADD:
-        return ((s->n_cars < s->prob->f) + 1)*(s->prob->n - s->n_rides);
+        a = (s->n_cars < s->prob->f && s->n_rides);
+        return (a + 1)*(s->prob->n - s->n_rides);
     default:
         fprintf(stderr, "Invalid neighbourhood passed to getNeighbourhoodSize().\n");
         break;
@@ -426,11 +434,19 @@ long getNeighbourhoodSize(struct solution *s, const enum SubNeighbourhood nh)
  */
 long enumSolutionComponents(struct solution *s, const enum ComponentState st)
 {
+    int aux;
     switch (st) {
     case PRESENT:
-        /*
-         * IMPLEMENT HERE
-         */
+        if (!s->enumComponentState)
+            return -1;
+        aux = s->n_rides + s->n_cars - s->enumComponentState--;
+        if (s->rides[aux] < s->prob->n) {
+            return pairing(s->rides[aux - 1] < s->prob->n ? s->rides[aux - 1] : s->prob->n, s->rides[aux]);
+        }
+        else {
+            s->enumComponentState--;
+            return pairing(s->prob->n, s->rides[aux + 1]);
+        }
     default:
         fprintf(stderr, "Invalid state passed to enumSolutionComponents().\n");
         break;
@@ -446,9 +462,8 @@ struct solution *resetEnumSolutionComponents(struct solution *s, const enum Comp
 {
     switch (st) {
     case PRESENT:
-        /*
-         * IMPLEMENT HERE
-         */
+        s->enumComponentState = s->n_rides + s->n_cars - 1;
+        return s;
     default:
         fprintf(stderr, "Invalid state passed to resetEnumSolutionComponents().\n");
         break;
