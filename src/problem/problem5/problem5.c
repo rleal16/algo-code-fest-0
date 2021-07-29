@@ -29,9 +29,9 @@ struct problem {
 
 struct solution {
   struct problem *prob;
-  /*
-   * IMPLEMENT HERE
-   */
+  int *rides;
+  int n_cars; // the number of cars present in the solution
+  int n_rides;
   int evalv;    /* Flag indicating if the solution is evaluated */
   double objv;  /* Objective value */
   int evalLB;   /* Flag indicating if the lower bound is calculated */
@@ -184,9 +184,7 @@ struct solution *allocSolution(struct problem *p)
 {
     struct solution *s = malloc(sizeof(struct solution));
     s->prob = p;
-    /*
-     * IMPLEMENT HERE
-     */
+    s->rides = malloc(sizeof(int)*(p->n + p->f));
     return s;
 }
 
@@ -222,10 +220,8 @@ void freeProblem(struct problem *p)
  */
 void freeSolution(struct solution *s)
 {
-    /*
-     * IMPLEMENT HERE
-     */
-    free(s);
+  free(s->rides);
+  free(s);
 }
 
 /*
@@ -285,11 +281,20 @@ void printMove(const struct move *v)
  */
 struct solution *emptySolution(struct solution *s)
 {
-    /* solution s must have been allocated with allocSolution() */
-    /*
-     * IMPLEMENT HERE
-     */
-    return s;
+  /* solution s must have been allocated with allocSolution() */
+  struct problem *p = s->prob;
+  s->n_cars = 1;
+  s->n_rides = 0;
+  s->evalv = 0;
+  s->evalLB = 0;
+
+  for(int i = 0; i < (p->n + p->f); i++){
+    s->rides[i] = i;
+  }
+  s->rides[0] = p->n;
+  s->rides[p->n] = 0;
+
+  return s;
 }
 
 /*
@@ -311,6 +316,11 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 /*
  * Solution evaluation
  */
+
+
+ 
+
+
 double *getObjectiveVector(double *objv, struct solution *s)
 {
     /* solution is unfeasible, cannot evaluate it */
