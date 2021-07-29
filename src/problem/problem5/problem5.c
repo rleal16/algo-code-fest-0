@@ -32,6 +32,7 @@ struct problem {
 struct solution {
   struct problem *prob;
   int *rides;
+  int *irides;
   int *cars;
   int n_cars; // the number of cars present in the solution
   int n_rides;
@@ -192,6 +193,7 @@ struct solution *allocSolution(struct problem *p)
     struct solution *s = malloc(sizeof(struct solution));
     s->prob = p;
     s->rides = malloc(sizeof(int)*(p->n + p->f));
+    s->irides = malloc(sizeof(int)*(p->n + p->f));
     s->cars = malloc(sizeof(int)*(p->f));
     return s;
 }
@@ -226,6 +228,7 @@ void freeProblem(struct problem *p)
 void freeSolution(struct solution *s)
 {
   free(s->rides);
+  free(s->irides);
   free(s->cars);
   free(s);
 }
@@ -303,18 +306,12 @@ struct solution *emptySolution(struct solution *s)
   /* solution s must have been allocated with allocSolution() */
   struct problem *p = s->prob;
   for(int i = 0; i < (p->n + p->f); i++){
-    s->rides[i] = i;
+    s->rides[i] = s->irides[i] = i;
   }
-  s->rides[0] = p->n;
-  s->rides[p->n] = 0;
-
-
-
+  swap_i(s->rides, s->irides, 0, s->prob->n);
   updateCarPositions(s);
   s->n_cars = 1;
   s->n_rides = 0;
-  /** For Testing **/
-  s->n_rides+=20;
   s->evalv = 0;
   s->evalLB = 0;
   s->enumComponentState = s->n_rides;
@@ -328,6 +325,7 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
 {
     dest->prob = src->prob;
     memcpy(dest->rides, src->rides, sizeof(int) * (src->prob->n + src->prob->f));
+    memcpy(dest->irides, src->irides, sizeof(int) * (src->prob->n + src->prob->f));
     memcpy(dest->cars, src->cars, sizeof(int) * (src->prob->f));
     dest->n_cars = src->n_cars;
     dest->n_rides = src->n_rides;
@@ -442,7 +440,7 @@ double *getObjectiveLB(double *objLB, struct solution *s)
  */
 struct solution *applyMove(struct solution *s, const struct move *v, const enum SubNeighbourhood nh)
 {
-    int i,j;
+    int i,j,pos;
     int n = s->prob->n;
     int f = s->prob->f;
     switch (nh) {
@@ -450,40 +448,31 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
         // add to current car
         if(v->previousRide < n){
             // pos we will add to
-            int pos = s->n_cars + s->n_rides;
+            pos = s->n_cars + s->n_rides;
             // find newRide's index
-            for(j=pos; j<(n+f); j++){
-                if(s->rides[j] == v->newRide)
-                    break;
-            }
-            swap(s->rides, pos, j);
+            j = s->irides[v->newRide];
+            swap_i(s->rides, s->irides, pos, j);
             s->n_rides++;
         } // add to new car
         else {
             // add car
-            int pos = s->n_cars + s->n_rides;
+            pos = s->n_cars + s->n_rides;
             // find first car available to add's idnex
-            for(j=pos; j<(n+f); j++){
-                if(s->rides[j]>=n)
-                    break;
-            }
-            swap(s->rides, pos, j);
+            j = s->prob->n + s->n_cars;
+            swap_i(s->rides, s->irides, pos, j);
             s->n_cars++;
             // add ride
             pos++;
             // find newRide's index
-            for(j=pos; j<(n+f); j++){
-                if(s->rides[j] == v->newRide)
-                    break;
-            }
-            swap(s->rides, pos, j);
+            j = s->irides[v->newRide];
+            swap_i(s->rides, s->irides, pos, j);
             s->n_rides++;
         }
         i = 0;
         break;
     case REMOVE:
         // remove from current car
-        if(v->previousRide < n){
+        if(v->previousRide < n || s->n_cars <= 1){
             s->n_rides--;
         } // remove car as well as ride
         // !! assuming car only had that one ride !!
@@ -491,14 +480,11 @@ struct solution *applyMove(struct solution *s, const struct move *v, const enum 
             s->n_rides--;
             // find (from right to left) first position containing ride
             // so that end of s->rides contains only cars :)
-            for(j=(n+f-1); j>=0; j--){
-                if(s->rides[j]<n)
-                    break;
-            }
+            j = s->prob->n + s->n_cars - 1;
             // pos to add is n_cars+n_rides
             // we remove from the pos preceding it
-            int pos = s->n_cars + s->n_rides - 1;
-            swap(s->rides, pos, j);
+            pos = s->n_cars + s->n_rides - 1;
+            swap_i(s->rides, s->irides, pos, j);
             s->n_cars--;
         }
         i = 1;
