@@ -35,6 +35,7 @@ struct solution {
   int *cars;
   int n_cars; // the number of cars present in the solution
   int n_rides;
+  int last_eval_ride;
   int evalv;    /* Flag indicating if the solution is evaluated */
   double objv;  /* Objective value */
   int evalLB;   /* Flag indicating if the lower bound is calculated */
@@ -325,6 +326,7 @@ struct solution *copySolution(struct solution *dest, const struct solution *src)
     memcpy(dest->cars, src->cars, sizeof(int) * (src->prob->f));
     dest->n_cars = src->n_cars;
     dest->n_rides = src->n_rides;
+    dest->last_eval_ride = src->last_eval_ride;
     dest->evalv = src->evalv;
     dest->objv = src->objv;
     dest->evalLB = src->evalLB;
@@ -379,8 +381,9 @@ static double getCarObjectiveValue(int car, int *n_rides, struct solution *s){
   i = s->cars[car]+1;
 
   for(; i<n && i<s->cars[car+1] && step < t && *n_rides > 0; i++){
-    
+
     int_score = evaluateRide(&step, i, vh_pos, s);
+    s->last_eval_ride = i;
     *n_rides--;
     score += int_score;
   }
@@ -406,6 +409,7 @@ double *getObjectiveVector(double *objv, struct solution *s)
       for(int vh = 0; vh<total_cars && n_rides>0; vh++){
         getCarObjectiveValue(vh, &n_rides, s);
       }
+
       *objv = -1*s->objv;
       s->evalv = 1;
     }
@@ -416,19 +420,50 @@ double *getObjectiveVector(double *objv, struct solution *s)
 /*
  * Lower bound evaluation
  */
+
+static double evaluateRideOptimistically(int i, struct solution *s){
+ struct problem *p = s->prob;
+ double int_score = 0.0;
+ int **rides = p->rides;
+ int dist;
+ int ride = s->rides[i];
+
+ //Give bonus if ride has started on time
+ int_score+=p->b;
+
+ // assume ride ends on time
+ int_score += abs(rides[ride][0]-rides[ride][2]) + abs(rides[ride][1]-rides[ride][3]);
+
+ return int_score;
+}
+
+
 double *getObjectiveLB(double *objLB, struct solution *s)
 {
-    double obj = 0.0;
-    if (s->evalLB) /* solution s is evaluated */
-        *objLB = s->objLB;
-    else { /* solution s is not evaluated */
-        /*
-         * IMPLEMENT HERE
-         */
-        *objLB = s->objLB = obj;
-        s->evalLB = 1;
-    }
-    return objLB;
+  struct problem *p = s->prob;
+  int n = p->f + p->n;
+
+  int vh_pos[2];
+  vh_pos[0] = 0;
+  vh_pos[1] = 0;
+
+  double obj = 0.0;
+  if (s->evalLB) /* solution s is evaluated */
+      *objLB = -1*s->objLB;
+  else { /* solution s is not evaluated */
+      int n = s->prob->n + s->prob->f;
+      getObjectiveVector(&obj, s);
+      s->objLB = s->objv;
+
+      int i = s->last_eval_ride+1;
+      for(; i<n && s->rides[i] < s->prob->n; i++){
+        s->objLB += evaluateRideOptimistically(i, s);
+      }
+
+      *objLB = -1*s->objLB;
+      s->evalLB = 1;
+  }
+  return objLB;
 }
 
 /*

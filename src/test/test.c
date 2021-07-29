@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 {
     struct problem *p;
     struct solution *s;
-    double cost;
+    double cost, lb;
 
     /* Set up random number generation */
     rng = gsl_rng_alloc(gsl_rng_mt19937);
@@ -47,7 +47,9 @@ int main(int argc, char **argv)
         //printProblem(p);
         s = emptySolution(s);
         getObjectiveVector(&cost, s);
+        getObjectiveLB(&lb, s);
         printf("Cost is: %lf\n", cost);
+        printf("LB is: %lf\n", lb);
         /* Run tests */
         //runPropertyBased(p, MAX_REP);
 
